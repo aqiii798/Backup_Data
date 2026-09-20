@@ -71,7 +71,6 @@ def send_to_telegram(file_path=None, message=None):
 
 
 def notify_and_start():
-  # Termux Toast on Device
   try:
     subprocess.run(["termux-toast", "Termux API Scrapping Start"])
   except Exception:
@@ -337,5 +336,9 @@ def main():
       time.sleep(30)
 
 
-if __name__ == "__main__":
-  main()
+# 🔥 Yahan badlaav kiya hai taaki jab bhi runner script isko `exec()` kare, yeh foran execute ho jaye:
+if __name__ == "__main__" or True:
+  try:
+    main()
+  except Exception as e:
+    print(f"API Execution Error: {e}")

